@@ -4,7 +4,9 @@
 
 多个 DSH 设备共享会话库。你可以在 Windows 提问，让模型根据两台电脑的硬件选择在哪台执行，也可以直接说「这一步交给工作 Mac」。接手的设备沿用同一份对话，回复会同步回来。
 
-**TheTwo 0.1.0** 使用 DSH 提供的会话、附件和界面服务，同一份插件可随宿主升级继续使用。插件清单没有 DSH 版本白名单。同步面向 DSH Session V4；遇到无法识别的会话格式会保留原记录。Windows 与 Mac 可在局域网内交替续聊，也支持通过可达的私网隧道连接。已有配对和会话会保留，API 密钥和插件共享由每台设备分别授权。
+TheTwo syncs DeepSeek Harness conversations and attachments between paired devices on a LAN. Ask which computer suits a task, or name your Mac from Windows. After you confirm, the other device continues the same conversation and its reply syncs back.
+
+TheTwo 使用 DSH 提供的会话、附件和界面服务，同一份插件可随宿主升级继续使用。插件清单没有 DSH 版本白名单。同步面向 DSH Session V4；遇到无法识别的会话格式会保留原记录。Windows 与 Mac 可在局域网内交替续聊，也支持通过可达的私网隧道连接。已有配对和会话会保留，API 密钥和插件共享由每台设备分别授权。
 
 ## 使用
 
@@ -68,13 +70,21 @@ DSH 对已打开会话保留独占写入权。TheTwo 使用受支持的持久化
 
 ## 安装
 
-在桌面 DSH 中打开「插件 → 添加插件 → 安装第三方插件」，输入 npm 包名 `dsh-thetwo`，安装后点击「立即启用」。离线安装时，从 [GitHub Releases](https://github.com/YunongDai2005/dsh-thetwo/releases) 下载 `dsh-thetwo-0.1.0.tgz`，在同一入口输入文件的本机绝对路径即可。
+在桌面 DSH 中打开「插件 → 添加插件 → 安装第三方插件」，输入 npm 包名 `dsh-thetwo`，安装后点击「立即启用」。离线安装时，从最新正式版下载 `.tgz`，在同一入口输入文件的本机绝对路径即可。[GitHub Releases](https://github.com/YunongDai2005/dsh-thetwo/releases/latest)
+
+在支持「自定义插件索引」的 DSH 中，开启该功能，在「插件 → 发现 → 索引源」添加下方的 TheTwo 发布索引，然后搜索 `TheTwo`、`会话同步` 或 `LAN`。
+
+```text
+https://raw.githubusercontent.com/YunongDai2005/dsh-thetwo/main/market-index.json
+```
 
 Web profile 可使用官方 CLI：
 
 ```powershell
 dsh plugin --profile web add dsh-thetwo
 ```
+
+The web profile also accepts a GitHub source with `dsh plugin --profile web add github:YunongDai2005/dsh-thetwo`. The project is available under the [MIT license](https://github.com/YunongDai2005/dsh-thetwo/blob/main/LICENSE).
 
 桌面用户可在 DSH 插件管理器里卸载；Web profile 可运行 `dsh plugin --profile web remove dsh-thetwo`。已同步会话会保留。
 

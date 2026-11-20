@@ -21,7 +21,7 @@ for (let cursor = 0; cursor + 512 <= tar.length;) {
   } else assert.ok(['5', 'x', 'g'].includes(type), `unsupported tar entry ${path}`)
   cursor += 512 + Math.ceil(size / 512) * 512
 }
-const expected = ['README.md', 'cordis.patch.yml', 'package.json', ...(await readdir('lib')).filter(name => name.endsWith('.js')).map(name => `lib/${name}`)].sort()
+const expected = ['LICENSE', 'README.md', 'cordis.patch.yml', 'package.json', ...(await readdir('lib')).filter(name => name.endsWith('.js')).map(name => `lib/${name}`)].sort()
 assert.deepEqual([...entries.keys()].sort(), expected, 'pack contains only publishable source files')
 for (const path of expected) assert.equal(hash(entries.get(path)), hash(await readFile(path)), `${path} differs from source`)
 assert.ok((await readFile('lib/client.js', 'utf8')).includes(`version = '${manifest.version}'`))

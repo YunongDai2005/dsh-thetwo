@@ -1,8 +1,10 @@
 {
   "name": "dsh-thetwo",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
-  "description": "TheTwo — 同一份会话。DeepSeek Harness 多设备局域网会话同步插件。",
+  "description": "Sync DeepSeek Harness conversations and attachments over a LAN and hand tasks to a paired device. 局域网会话同步与跨设备任务交接。",
+  "license": "MIT",
+  "keywords": ["dsh-plugin", "deepseek-harness", "dsh", "lan", "session-sync", "task-handoff", "会话同步", "任务交接"],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/YunongDai2005/dsh-thetwo.git"

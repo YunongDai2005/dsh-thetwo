@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "title": { "en": "TheTwo", "zh": "TheTwo" },
+  "plugins": [
+    {
+      "name": "dsh-thetwo",
+      "title": { "en": "TheTwo", "zh": "TheTwo" },
+      "description": {
+        "en": "Sync conversations and attachments across paired LAN devices. Share hardware context with the current model and hand a task to another device.",
+        "zh": "在已配对的局域网设备间同步会话与附件。当前模型可以比较设备硬件，并将任务交给另一台设备接手。"
+      },
+      "icon": "./assets/thetwo-mark.svg",
+      "repository": { "url": "https://github.com/YunongDai2005/dsh-thetwo" },
+      "homepage": "https://github.com/YunongDai2005/dsh-thetwo",
+      "metadata": { "keywords": ["dsh-plugin", "LAN", "session sync", "task handoff", "Windows", "macOS", "局域网", "会话同步", "任务交接"] },
+      "versions": [
+        { "version": "0.1.0", "publishTimestamp": 1795154667, "source": { "type": "npm" } }
+      ]
+    }
+  ]
+}
