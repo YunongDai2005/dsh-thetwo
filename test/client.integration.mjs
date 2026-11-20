@@ -25,6 +25,8 @@ test('native panel pairs without a PIN, receives an Allow dialog, and opens nati
         assert.equal(options.headers['x-thetwo'] ?? options.headers['x-session-link'], '1')
         if (action.action === 'pair') status = { ...status, devices: status.devices.map(p => ({ ...p, requested: true })) }
         if (action.action === 'allow') status = { ...status, requests: [] }
+        if (action.action === 'handoff-run') status.handoffs.find(r => r.id === action.id).state = 'submitted'
+        if (action.action === 'handoff-confirm') status.handoffs.find(r => r.id === action.id).confirmed = true
         return { ok: true, json: async () => ({ ok: true, value: action.action === 'open' ? { id: 'latest-chat-1', sharedId: 'chat-1', archived } : null }) }
       }
       return { ok: true, json: async () => ({ ok: true, value: path.endsWith('/status') ? status : { sessions: [{ id: 'chat-1', title: '<script>测试会话</script>', updatedAt: 1700000000000, archived }], waiting: [] } }) }
@@ -63,6 +65,18 @@ test('native panel pairs without a PIN, receives an Allow dialog, and opens nati
   await click('取消归档并打开')
   assert.deepEqual(unarchived, ['latest-chat-1'])
   assert.deepEqual(opened, ['latest-chat-1', 'latest-chat-1'])
+  status.handoffs = [
+    { id: 'incoming', direction: 'in', name: '电脑 B', session: 'chat-1', task: '统计当前对话的数字', state: 'waiting' },
+    { id: 'outgoing', direction: 'out', name: '工作 Mac', session: 'chat-1', task: '继续这份分析', state: 'waiting', canConfirm: true },
+  ]
+  await act(async () => { for (const fn of timers) fn() })
+  assert.match(dom.window.document.body.textContent, /统计当前对话的数字/)
+  await click('在本机执行')
+  assert.deepEqual(actions.at(-1), { action: 'handoff-run', id: 'incoming' })
+  await click('在「工作 Mac」执行')
+  assert.deepEqual(actions.at(-1), { action: 'handoff-confirm', id: 'outgoing' })
+  assert.match(dom.window.document.body.textContent, /已确认/)
+  assert.match(dom.window.document.body.textContent, /已提交给 DSH/)
   assert.equal(dom.window.document.querySelector('script'), null)
 })
 
@@ -125,13 +139,15 @@ test('native settings drafts save explicitly and the panel settings shortcut use
   await act(async () => { Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set.call(name, '工作 Mac'); name.dispatchEvent(new dom.window.Event('input', { bubbles: true })) })
   const keys = card.querySelector('[role=switch][aria-label="同步 API 密钥"]')
   const plugins = card.querySelector('[role=switch][aria-label="共享插件列表"]')
+  const tasks = card.querySelector('[role=switch][aria-label="允许对方确认任务"]')
   assert.ok(name.compareDocumentPosition(keys) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING, 'device name comes before its sharing options')
-  await act(async () => { keys.click(); plugins.click() })
+  await act(async () => { keys.click(); plugins.click(); tasks.click() })
   assert.equal(actions.length, 1, 'peer drafts also require their own explicit save')
   await act(async () => [...card.querySelectorAll('button')].find(b => b.textContent === '保存设备设置').click())
   assert.equal(actions.at(-1).action, 'peer-settings'); assert.equal(actions.at(-1).id, 'B')
   assert.equal(peers[0].settings.values.deviceName, '工作 Mac')
   assert.equal(peers[0].settings.values.syncApiKeys, true)
+  assert.equal(peers[0].settings.values.acceptConfirmedTasks, true)
   assert.equal(peers[1].settings.values.syncApiKeys, false)
   assert.equal(peers[1].settings.values.syncPlugins, false)
   const main = registrations.find(row => row.meta.name === 'main')
