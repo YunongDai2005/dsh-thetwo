@@ -1,0 +1,56 @@
+{
+  "name": "dsh-thetwo",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "TheTwo — 同一份会话。DeepSeek Harness 多设备局域网会话同步插件。",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YunongDai2005/dsh-thetwo.git"
+  },
+  "homepage": "https://github.com/YunongDai2005/dsh-thetwo#readme",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-workspace",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-api-workspace-controller"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "test:integration": "node --test test/*.integration.mjs",
+    "test:all": "node --test test/*.test.mjs test/*.integration.mjs",
+    "check": "node scripts/check.mjs",
+    "verify:pack": "node scripts/verify-pack.mjs",
+    "verify:install": "node scripts/verify-install.mjs",
+    "preview": "node scripts/preview.mjs"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh": "latest",
+    "jsdom": "26.1.0",
+    "react-dom": "18.3.1"
+  }
+}

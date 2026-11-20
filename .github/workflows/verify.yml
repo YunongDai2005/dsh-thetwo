@@ -1,0 +1,56 @@
+name: Verify TheTwo
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Pack the release once
+        run: |
+          mkdir -p artifacts
+          npm run check
+          npm pack --ignore-scripts --pack-destination artifacts
+          npm run verify:pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: thetwo-package
+          path: |
+            artifacts/*.tgz
+            artifacts/SHA256SUMS-*.txt
+            artifacts/verification-*.json
+  host:
+    needs: package
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+        dsh: ['0.2.0-rc.2', latest]
+    env:
+      DSH_TEST_NODE_MODULES: .preview/ci-host/node_modules
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm install --global pnpm@11 --no-audit --no-fund
+      - run: npm install --prefix .preview/ci-host --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh@${{ matrix.dsh }}
+        shell: bash
+      - run: npm run test:all
+      - uses: actions/download-artifact@v4
+        with:
+          name: thetwo-package
+          path: artifacts
+      - run: npm run verify:pack
+      - run: npm run verify:install
