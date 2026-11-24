@@ -1,6 +1,6 @@
 {
   "name": "dsh-thetwo",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "Sync DeepSeek Harness conversations and attachments over a LAN and hand tasks to a paired device. 局域网会话同步与跨设备任务交接。",
   "license": "MIT",
