@@ -80,6 +80,8 @@ DSH 对已打开会话保留独占写入权。TheTwo 使用受支持的持久化
 https://raw.githubusercontent.com/YunongDai2005/dsh-thetwo/main/market-index.json
 ```
 
+索引随 GitHub 正式版更新，每个新版本指向对应的 Git 提交。刷新索引即可在 DSH「发现」中看到可用版本。
+
 Web profile 可使用官方 CLI：
 
 ```powershell
@@ -110,3 +112,9 @@ npm run verify:install
 目录按 DSH revision 缓存，未改变会话不重复解码；待应用检查点不会反复下载。传输仍使用完整检查点，单个加密消息最多 64 MiB，大于限制的记录单独显示原因，不影响其他会话。大附件分块、完整环境复制和大型历史库负载优化尚未实现。
 
 各版本的验证范围见 [GitHub Releases](https://github.com/YunongDai2005/dsh-thetwo/releases)。数据约定见 [架构说明](https://github.com/YunongDai2005/dsh-thetwo/blob/main/ARCHITECTURE.md)。
+
+### 发布正式版
+
+把 `package.json`、锁文件和客户端显示版本一同更新为新的正式版本号（如 `0.2.0`）并推送到 `main`。GitHub Actions 会在 Windows 和 macOS 验证安装包，创建对应的 GitHub Release，附上安装包和 SHA-256 校验文件，更新 DSH 索引，再通过 npm 的受信任发布者身份上传同一份安装包。手动发布 `vX.Y.Z` 的 GitHub 正式版也会触发同步。
+
+需要重试时，在 Actions 的 **Sync GitHub release** 中选择对应版本标签，并填写相同的标签名。已有版本会核对已发布包的内容。工作流位于 [release.yml](https://github.com/YunongDai2005/dsh-thetwo/blob/main/.github/workflows/release.yml)。

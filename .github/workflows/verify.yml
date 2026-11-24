@@ -3,6 +3,14 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      commit:
+        type: string
+        required: true
+      archive_url:
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -12,18 +20,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit || github.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
       - name: Pack the release once
+        env:
+          ARCHIVE_URL: ${{ inputs.archive_url }}
         run: |
           mkdir -p artifacts
           npm run check
-          npm pack --ignore-scripts --pack-destination artifacts
+          if [[ -n "$ARCHIVE_URL" ]]; then
+            version=$(node -p "require('./package.json').version")
+            curl --fail --location --retry 3 "$ARCHIVE_URL" -o "artifacts/dsh-thetwo-$version.tgz"
+          else
+            npm pack --ignore-scripts --pack-destination artifacts
+          fi
           npm run verify:pack
       - uses: actions/upload-artifact@v4
         with:
           name: thetwo-package
+          overwrite: true
           path: |
             artifacts/*.tgz
             artifacts/SHA256SUMS-*.txt
@@ -40,6 +59,9 @@ jobs:
       DSH_TEST_NODE_MODULES: .preview/ci-host/node_modules
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit || github.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24

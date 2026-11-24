@@ -1,0 +1,207 @@
+name: Sync GitHub release
+on:
+  push:
+    branches: [main]
+    paths: [package.json]
+  release:
+    types: [published, released]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published GitHub release to synchronize (e.g. v0.1.2)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: thetwo-stable-releases
+  queue: max
+
+jobs:
+  resolve:
+    if: github.event_name != 'release' || !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    env:
+      INPUT_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    outputs:
+      tag: ${{ steps.source.outputs.tag }}
+      commit: ${{ steps.source.outputs.commit }}
+      version: ${{ steps.source.outputs.version }}
+      archive_url: ${{ steps.release.outputs.archive_url }}
+      create_release: ${{ steps.release.outputs.create_release }}
+    steps:
+      - name: Validate the requested release tag
+        if: github.event_name != 'push'
+        run: '[[ "$INPUT_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]'
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || format('refs/tags/{0}', env.INPUT_TAG) }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Identify the stable version and its commit
+        id: source
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          version=$(jq -er '.version' package.json)
+          tag="v$version"
+          [[ "$(jq -er '.name' package.json)" == dsh-thetwo ]]
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            previous=$(git show "$BEFORE:package.json" | jq -er '.version')
+            if [[ "$version" == "$previous" || ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              echo 'No new stable package version on this push.'
+              exit 0
+            fi
+          else
+            [[ "$INPUT_TAG" == "$tag" ]]
+          fi
+          commit=$(git rev-parse HEAD)
+          [[ "$GITHUB_EVENT_NAME" != release || "$GITHUB_SHA" == "$commit" ]]
+          if git show-ref --verify --quiet "refs/tags/$tag"; then
+            [[ "$(git rev-parse "refs/tags/$tag^{commit}")" == "$commit" ]]
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+      - name: Find the existing release and its archive
+        id: release
+        if: steps.source.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.source.outputs.tag }}
+        run: |
+          meta="$RUNNER_TEMP/release.json"
+          if ! gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > "$meta" 2> "$meta.err"; then
+            if [[ "$GITHUB_EVENT_NAME" == push ]] && grep -Fq '(HTTP 404)' "$meta.err"; then
+              echo 'create_release=true' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            cat "$meta.err" >&2
+            exit 1
+          fi
+          jq -e --arg tag "$RELEASE_TAG" '.tag_name == $tag and (.draft | not) and (.prerelease | not)' "$meta"
+          archive="dsh-thetwo-${RELEASE_TAG#v}.tgz"
+          echo "archive_url=$(jq -r --arg name "$archive" '.assets[] | select(.name == $name) | .browser_download_url' "$meta")" >> "$GITHUB_OUTPUT"
+
+  verify:
+    needs: resolve
+    if: needs.resolve.outputs.commit != ''
+    uses: ./.github/workflows/verify.yml
+    with:
+      commit: ${{ needs.resolve.outputs.commit }}
+      archive_url: ${{ needs.resolve.outputs.archive_url }}
+
+  github:
+    name: Release assets and DSH Discover
+    needs: [resolve, verify]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+      VERSION: ${{ needs.resolve.outputs.version }}
+      COMMIT: ${{ needs.resolve.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEFAULT_BRANCH }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: thetwo-package
+          path: artifacts
+      - name: Create the GitHub release for the new version
+        if: needs.resolve.outputs.create_release == 'true'
+        run: |
+          gh release create "$RELEASE_TAG" "artifacts/dsh-thetwo-$VERSION.tgz" "artifacts/SHA256SUMS-$VERSION.txt" \
+            --target "$COMMIT" --title "TheTwo $VERSION" --generate-notes
+      - name: Attach or verify the tested files
+        run: |
+          git fetch origin "refs/tags/$RELEASE_TAG"
+          [[ "$(git rev-parse 'FETCH_HEAD^{commit}')" == "$COMMIT" ]]
+          gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' > "$RUNNER_TEMP/assets"
+          for file in "dsh-thetwo-$VERSION.tgz" "SHA256SUMS-$VERSION.txt"; do
+            if grep -Fxq "$file" "$RUNNER_TEMP/assets"; then
+              gh release download "$RELEASE_TAG" --pattern "$file" --dir "$RUNNER_TEMP/published"
+              cmp "artifacts/$file" "$RUNNER_TEMP/published/$file"
+            else
+              gh release upload "$RELEASE_TAG" "artifacts/$file"
+            fi
+          done
+      - name: Update the public catalog on the default branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          published=$(gh release view "$RELEASE_TAG" --json publishedAt --jq '.publishedAt')
+          for attempt in 1 2 3; do
+            git fetch origin "refs/heads/$DEFAULT_BRANCH"
+            git switch --detach FETCH_HEAD
+            node scripts/sync-release.mjs index "$VERSION" "$COMMIT" "$published"
+            if git diff --quiet -- market-index.json; then exit 0; fi
+            git add -- market-index.json
+            git commit -m "List TheTwo $VERSION in DSH Discover"
+            if git push origin "HEAD:refs/heads/$DEFAULT_BRANCH"; then exit 0; fi
+          done
+          exit 1
+
+  npm:
+    name: Publish to npm
+    needs: [resolve, github]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      VERSION: ${{ needs.resolve.outputs.version }}
+      RELEASE_COMMIT: ${{ needs.resolve.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: thetwo-package
+          path: artifacts
+      - name: Check the immutable npm version
+        id: registry
+        run: |
+          channel=$(node scripts/sync-release.mjs npm-channel "$VERSION")
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+      - name: Publish the tested archive with provenance
+        if: steps.registry.outputs.channel != 'published'
+        env:
+          CHANNEL: ${{ steps.registry.outputs.channel }}
+        run: |
+          if [[ "$GITHUB_SHA" != "$RELEASE_COMMIT" ]]; then
+            echo "::error::Run this workflow at the release tag so npm provenance identifies the source commit."
+            exit 1
+          fi
+          npm publish "./artifacts/dsh-thetwo-$VERSION.tgz" --access public --provenance --ignore-scripts --tag "$CHANNEL" --registry=https://registry.npmjs.org
+      - name: Verify the trusted publisher on a replay
+        if: steps.registry.outputs.channel == 'published'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const id = await core.getIDToken('npm:registry.npmjs.org')
+            const res = await fetch('https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/dsh-thetwo', {
+              method: 'POST', headers: { authorization: 'Bearer ' + id }
+            })
+            await res.body?.cancel()
+            if (res.status !== 201) throw new Error('npm trusted publisher exchange returned HTTP ' + res.status)
+            core.info('npm accepted this workflow identity for dsh-thetwo.')
+      - name: Confirm the public npm archive
+        run: |
+          for attempt in {1..30}; do
+            if node scripts/sync-release.mjs verify-npm "$VERSION"; then exit 0; fi
+            sleep 15
+          done
+          exit 1

@@ -10,7 +10,7 @@ test('DSH can load TheTwo after a host upgrade without a version exemption', asy
   }
 })
 
-test('the public catalog offers the current release from npm or a pinned TheTwo commit', async () => {
+test('the public catalog resolves released versions to npm or a pinned TheTwo commit', async () => {
   const { parseMarketIndex, marketInstallTarget } = await import('@deepseek-ai/dsh-plugin-market-index')
   const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
   assert.equal(manifest.license, 'MIT')
@@ -19,7 +19,8 @@ test('the public catalog offers the current release from npm or a pinned TheTwo 
   const index = parseMarketIndex(JSON.parse(await readFile(new URL('../market-index.json', import.meta.url), 'utf8')), url)
   const plugin = index.plugins.find(entry => entry.name === manifest.name)
   assert.ok(plugin)
-  assert.equal(plugin.versions[0].version, manifest.version)
+  // A tag is verified before its new version is added to the published catalog.
+  assert.ok(plugin.versions.length > 0)
   assert.ok(plugin.metadata.keywords.includes('会话同步'))
   for (const version of plugin.versions) {
     const { spec } = marketInstallTarget(plugin.name, version)
