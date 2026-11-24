@@ -10,7 +10,7 @@ test('DSH can load TheTwo after a host upgrade without a version exemption', asy
   }
 })
 
-test('the public catalog resolves TheTwo to npm and the package declares its discovery topic and license', async () => {
+test('the public catalog offers the current release from npm or a pinned TheTwo commit', async () => {
   const { parseMarketIndex, marketInstallTarget } = await import('@deepseek-ai/dsh-plugin-market-index')
   const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
   assert.equal(manifest.license, 'MIT')
@@ -19,9 +19,15 @@ test('the public catalog resolves TheTwo to npm and the package declares its dis
   const index = parseMarketIndex(JSON.parse(await readFile(new URL('../market-index.json', import.meta.url), 'utf8')), url)
   const plugin = index.plugins.find(entry => entry.name === manifest.name)
   assert.ok(plugin)
+  assert.equal(plugin.versions[0].version, manifest.version)
   assert.ok(plugin.metadata.keywords.includes('会话同步'))
   for (const version of plugin.versions) {
-    assert.equal(marketInstallTarget(plugin.name, version).spec, `${plugin.name}@${version.version}`)
+    const { spec } = marketInstallTarget(plugin.name, version)
+    if (version.source.type === 'npm') {
+      assert.equal(spec, `${plugin.name}@${version.version}`)
+    } else {
+      assert.match(spec, /^git\+https:\/\/github\.com\/YunongDai2005\/dsh-thetwo\.git#[0-9a-f]{40}$/)
+    }
     assert.equal(version.engines.dsh, undefined)
   }
 })
